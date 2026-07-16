@@ -61,7 +61,7 @@ install_caddy() {
 write_caddy_config() {
   local site=":${ACCESS_PORT}"
   run_root mkdir -p /etc/caddy/conf.d
-  printf '%s {\n    request_body {\n        max_size 100GB\n    }\n\n    handle /api/* {\n        reverse_proxy 127.0.0.1:28080\n    }\n\n    handle {\n        reverse_proxy 127.0.0.1:23000\n    }\n}\n' "$site" | run_root tee /etc/caddy/conf.d/yesnas.caddy >/dev/null
+  printf '%s {\n    request_body {\n        max_size 100GB\n    }\n\n    handle /api/* {\n        reverse_proxy 127.0.0.1:28080\n    }\n\n    redir /apache /apache/\n    handle_path /apache/* {\n        reverse_proxy 127.0.0.1:28081\n    }\n\n    redir /webdav /webdav/\n    handle /webdav/* {\n        reverse_proxy 127.0.0.1:28088\n    }\n\n    handle {\n        reverse_proxy 127.0.0.1:23000\n    }\n}\n' "$site" | run_root tee /etc/caddy/conf.d/yesnas.caddy >/dev/null
   if [[ "$CADDY_WAS_INSTALLED" == 1 ]]; then
     printf 'import /etc/caddy/conf.d/*.caddy\n' | run_root tee /etc/caddy/Caddyfile >/dev/null
   else
@@ -153,6 +153,8 @@ main() {
   log "Installation completed."
   log "Access URL: $url"
   log "IP address: $ip_url"
+  log "Apache URL: ${url}/apache/"
+  log "WebDAV URL: ${url}/webdav/"
   log "Default username: admin"
   log "Default password: admin"
   warn "Change the default password immediately after signing in."
