@@ -2,8 +2,8 @@
 set -Eeuo pipefail
 
 INSTALL_REPO="${YESNAS_INSTALL_REPO:-i-dj/yesnas-install}"
-SERVER_SCRIPT="https://raw.githubusercontent.com/i-dj/yesnas-server/main/scripts/install.sh"
-WEB_SCRIPT="https://raw.githubusercontent.com/i-dj/yesnas/main/scripts/install.sh"
+SERVER_SCRIPT="https://raw.githubusercontent.com/i-dj/yesnas-server/refs/heads/main/scripts/install.sh"
+WEB_SCRIPT="https://raw.githubusercontent.com/i-dj/yesnas/refs/heads/main/scripts/install.sh"
 STATE_DIR="/etc/yesnas-install"
 STATE_FILE="${STATE_DIR}/config.env"
 CADDY_WAS_INSTALLED=0
@@ -78,7 +78,6 @@ main() {
   command -v curl >/dev/null 2>&1 || fail "curl is required."
   command -v sed >/dev/null 2>&1 || fail "sed is required."
   command -v ss >/dev/null 2>&1 || fail "ss is required (install the iproute2 package)."
-  command -v setsid >/dev/null 2>&1 || fail "setsid is required (install the util-linux package)."
   command -v apt-get >/dev/null 2>&1 || fail "Only Debian/Ubuntu systems with apt-get are supported."
   [[ "$EUID" -eq 0 ]] || command -v sudo >/dev/null 2>&1 || fail "sudo is required."
 
@@ -112,12 +111,21 @@ main() {
   curl -fsSL --retry 3 "$WEB_SCRIPT" -o "$web_installer"
 
   log "Installing YesNAS Server..."
-  run_root env YESNAS_USER="$RUN_USER" YESNAS_HOSTNAME="$DEVICE_NAME" setsid bash "$server_installer" </dev/null
+  run_root env \
+    YESNAS_NONINTERACTIVE=1 \
+    YESNAS_USER="$RUN_USER" \
+    YESNAS_HOSTNAME="$DEVICE_NAME" \
+    YESNAS_PORT=28080 \
+    bash "$server_installer"
   run_root systemctl is-active --quiet yesnas-server || fail "YesNAS Server is not running."
   log "YesNAS Server is running."
 
   log "Installing YesNAS Web..."
-  run_root env YESNAS_WEB_USER="$RUN_USER" setsid bash "$web_installer" </dev/null
+  run_root env \
+    YESNAS_NONINTERACTIVE=1 \
+    YESNAS_WEB_USER="$RUN_USER" \
+    YESNAS_WEB_PORT=23000 \
+    bash "$web_installer"
   run_root systemctl is-active --quiet yesnas-web || fail "YesNAS Web is not running."
 
   install_caddy

@@ -2,8 +2,8 @@
 set -Eeuo pipefail
 
 STATE_FILE="/etc/yesnas-install/config.env"
-SERVER_SCRIPT="https://raw.githubusercontent.com/i-dj/yesnas-server/main/scripts/upgrade.sh"
-WEB_SCRIPT="https://raw.githubusercontent.com/i-dj/yesnas/main/scripts/upgrade.sh"
+SERVER_SCRIPT="https://raw.githubusercontent.com/i-dj/yesnas-server/refs/heads/main/scripts/upgrade.sh"
+WEB_SCRIPT="https://raw.githubusercontent.com/i-dj/yesnas/refs/heads/main/scripts/upgrade.sh"
 INSTALL_REPO="${YESNAS_INSTALL_REPO:-i-dj/yesnas-install}"
 log() { printf '\033[1;32m[YesNAS Updater]\033[0m %s\n' "$*"; }
 fail() { printf '\033[1;31m[YesNAS Updater][ERROR]\033[0m %s\n' "$*" >&2; exit 1; }
