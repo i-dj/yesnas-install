@@ -70,8 +70,16 @@ write_caddy_config() {
     grep -Fqx 'import /etc/caddy/conf.d/*.caddy' /etc/caddy/Caddyfile || printf '\nimport /etc/caddy/conf.d/*.caddy\n' | run_root tee -a /etc/caddy/Caddyfile >/dev/null
   fi
   run_root caddy validate --config /etc/caddy/Caddyfile
-  run_root systemctl enable --now caddy
-  run_root systemctl reload caddy
+  run_root systemctl enable caddy >/dev/null
+  if run_root systemctl is-active --quiet caddy; then
+    run_root systemctl reload caddy
+  else
+    run_root systemctl restart caddy
+  fi
+  if ! run_root systemctl is-active --quiet caddy; then
+    run_root systemctl status caddy --no-pager || true
+    fail "Caddy failed to start."
+  fi
 }
 
 main() {

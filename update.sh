@@ -54,7 +54,16 @@ main() {
   site="http://${DEVICE_NAME}"; [[ "$ACCESS_PORT" == 80 ]] || site="${site}:${ACCESS_PORT}"
   printf '%s {\n    request_body {\n        max_size 100GB\n    }\n\n    handle /api/* {\n        reverse_proxy 127.0.0.1:28080\n    }\n\n    handle {\n        reverse_proxy 127.0.0.1:23000\n    }\n}\n' "$site" | run_root tee /etc/caddy/conf.d/yesnas.caddy >/dev/null
   run_root caddy validate --config /etc/caddy/Caddyfile
-  run_root systemctl reload caddy
+  run_root systemctl enable caddy >/dev/null
+  if run_root systemctl is-active --quiet caddy; then
+    run_root systemctl reload caddy
+  else
+    run_root systemctl restart caddy
+  fi
+  if ! run_root systemctl is-active --quiet caddy; then
+    run_root systemctl status caddy --no-pager || true
+    fail "Caddy failed to start."
+  fi
   printf 'DEVICE_NAME=%q\nRUN_USER=%q\nACCESS_PORT=%q\nORIGINAL_HOSTNAME=%q\nINSTALLER_VERSION=%q\n' "$DEVICE_NAME" "$RUN_USER" "$ACCESS_PORT" "$ORIGINAL_HOSTNAME" "$version" | run_root tee "$STATE_FILE" >/dev/null
   log "Update completed. Open $site"
 }
