@@ -36,7 +36,7 @@ show_welcome() {
 EOF
   printf '\033[0m\n'
   printf '\033[1;32mWelcome to YesNAS!\033[0m\n'
-  printf 'You are about to install YesNAS %s.\n\n' "$version"
+  printf 'Version to install: %s\n\n' "$version"
 }
 
 install_caddy() {
