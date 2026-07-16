@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (for example v1.2.3); leave empty to increment the latest patch version"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Resolve version
+        id: version
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ -n "$REQUESTED_VERSION" ]]; then
+            VERSION="${REQUESTED_VERSION#v}"
+          else
+            LATEST="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)"
+            LATEST="${LATEST#v}"
+            if [[ -z "$LATEST" ]]; then
+              VERSION="0.1.0"
+            else
+              IFS=. read -r MAJOR MINOR PATCH <<< "$LATEST"
+              VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+            fi
+          fi
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Version must use semantic versioning, such as v1.2.3." >&2; exit 1; }
+          git rev-parse "v${VERSION}" >/dev/null 2>&1 && { echo "Tag v${VERSION} already exists." >&2; exit 1; }
+          echo "version=v${VERSION}" >> "$GITHUB_OUTPUT"
+      - name: Package scripts
+        run: |
+          chmod +x install.sh update.sh uninstall.sh
+          tar -czf "yesnas-installer-${{ steps.version.outputs.version }}.tar.gz" install.sh update.sh uninstall.sh README.md
+          sha256sum "yesnas-installer-${{ steps.version.outputs.version }}.tar.gz" > "yesnas-installer-${{ steps.version.outputs.version }}.tar.gz.sha256"
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.version.outputs.version }}" \
+            "yesnas-installer-${{ steps.version.outputs.version }}.tar.gz" \
+            "yesnas-installer-${{ steps.version.outputs.version }}.tar.gz.sha256" \
+            --target "$GITHUB_SHA" \
+            --generate-notes \
+            --title "YesNAS Installer ${{ steps.version.outputs.version }}"

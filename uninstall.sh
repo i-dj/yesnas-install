@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+STATE_FILE="/etc/yesnas-install/config.env"
+SERVER_SCRIPT="https://raw.githubusercontent.com/i-dj/yesnas-server/main/scripts/uninstall.sh"
+WEB_SCRIPT="https://raw.githubusercontent.com/i-dj/yesnas/main/scripts/uninstall.sh"
+log() { printf '\033[1;32m[YesNAS Uninstaller]\033[0m %s\n' "$*"; }
+fail() { printf '\033[1;31m[YesNAS Uninstaller][ERROR]\033[0m %s\n' "$*" >&2; exit 1; }
+run_root() { if [[ "$EUID" -eq 0 ]]; then "$@"; else sudo "$@"; fi; }
+prompt() { local value=""; [[ -r /dev/tty ]] && read -r -p "$1 [$2]: " value </dev/tty || true; printf '%s\n' "${value:-$2}"; }
+
+main() {
+  [[ "$EUID" -eq 0 ]] || { command -v sudo >/dev/null || fail "sudo is required."; sudo -v; }
+  DEVICE_NAME=yesnas RUN_USER="${SUDO_USER:-$(id -un)}" ACCESS_PORT=80 ORIGINAL_HOSTNAME=""
+  if run_root test -r "$STATE_FILE"; then local state; state="$(run_root cat "$STATE_FILE")"; eval "$state"; fi
+  DEVICE_NAME="$(prompt "Enter the YesNAS device name" "$DEVICE_NAME")"
+  RUN_USER="$(prompt "Enter the Linux user that runs YesNAS" "$RUN_USER")"
+  ACCESS_PORT="$(prompt "Enter the YesNAS HTTP access port" "$ACCESS_PORT")"
+  local answer=""
+  read -r -p "This will uninstall YesNAS. Type YESNAS to continue: " answer </dev/tty || true
+  [[ "$answer" == YESNAS ]] || fail "Uninstall cancelled."
+  local web_uninstaller server_uninstaller
+  web_uninstaller="$(mktemp)"; server_uninstaller="$(mktemp)"
+  trap 'rm -f "${web_uninstaller:-}" "${server_uninstaller:-}"' EXIT
+  curl -fsSL --retry 3 "$WEB_SCRIPT" -o "$web_uninstaller"
+  curl -fsSL --retry 3 "$SERVER_SCRIPT" -o "$server_uninstaller"
+  log "The upstream uninstallers will request their own safety confirmations."
+  bash "$web_uninstaller"
+  bash "$server_uninstaller"
+  run_root rm -f /etc/caddy/conf.d/yesnas.caddy
+  if command -v caddy >/dev/null 2>&1 && run_root caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1; then run_root systemctl reload caddy; fi
+  if [[ -n "$ORIGINAL_HOSTNAME" ]] && [[ "$(hostname)" == "$DEVICE_NAME" ]]; then run_root hostnamectl set-hostname "$ORIGINAL_HOSTNAME"; fi
+  run_root rm -rf /etc/yesnas-install
+  log "YesNAS was uninstalled. Caddy was kept because it may be used by other sites."
+}
+main "$@"
