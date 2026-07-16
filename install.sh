@@ -59,8 +59,7 @@ install_caddy() {
 }
 
 write_caddy_config() {
-  local site="http://${DEVICE_NAME}"
-  [[ "$ACCESS_PORT" == 80 ]] || site="${site}:${ACCESS_PORT}"
+  local site=":${ACCESS_PORT}"
   run_root mkdir -p /etc/caddy/conf.d
   printf '%s {\n    request_body {\n        max_size 100GB\n    }\n\n    handle /api/* {\n        reverse_proxy 127.0.0.1:28080\n    }\n\n    handle {\n        reverse_proxy 127.0.0.1:23000\n    }\n}\n' "$site" | run_root tee /etc/caddy/conf.d/yesnas.caddy >/dev/null
   if [[ "$CADDY_WAS_INSTALLED" == 1 ]]; then
@@ -79,6 +78,9 @@ write_caddy_config() {
   if ! run_root systemctl is-active --quiet caddy; then
     run_root systemctl status caddy --no-pager || true
     fail "Caddy failed to start."
+  fi
+  if command -v ufw >/dev/null 2>&1 && run_root ufw status | grep -q '^Status: active'; then
+    run_root ufw allow "${ACCESS_PORT}/tcp" >/dev/null
   fi
 }
 
@@ -143,9 +145,14 @@ main() {
   run_root chmod 0600 "$STATE_FILE"
 
   local url="http://${DEVICE_NAME}"
+  local ip_addr ip_url
   [[ "$ACCESS_PORT" == 80 ]] || url="${url}:${ACCESS_PORT}"
+  ip_addr="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  ip_url="http://${ip_addr:-127.0.0.1}"
+  [[ "$ACCESS_PORT" == 80 ]] || ip_url="${ip_url}:${ACCESS_PORT}"
   log "Installation completed."
   log "Access URL: $url"
+  log "IP address: $ip_url"
   log "Default username: admin"
   log "Default password: admin"
   warn "Change the default password immediately after signing in."

@@ -52,7 +52,7 @@ main() {
   run_root systemctl is-active --quiet yesnas-server || fail "YesNAS Server failed after applying the configuration."
   run_root systemctl is-active --quiet yesnas-web || fail "YesNAS Web failed after applying the configuration."
   site="http://${DEVICE_NAME}"; [[ "$ACCESS_PORT" == 80 ]] || site="${site}:${ACCESS_PORT}"
-  printf '%s {\n    request_body {\n        max_size 100GB\n    }\n\n    handle /api/* {\n        reverse_proxy 127.0.0.1:28080\n    }\n\n    handle {\n        reverse_proxy 127.0.0.1:23000\n    }\n}\n' "$site" | run_root tee /etc/caddy/conf.d/yesnas.caddy >/dev/null
+  printf ':%s {\n    request_body {\n        max_size 100GB\n    }\n\n    handle /api/* {\n        reverse_proxy 127.0.0.1:28080\n    }\n\n    handle {\n        reverse_proxy 127.0.0.1:23000\n    }\n}\n' "$ACCESS_PORT" | run_root tee /etc/caddy/conf.d/yesnas.caddy >/dev/null
   run_root caddy validate --config /etc/caddy/Caddyfile
   run_root systemctl enable caddy >/dev/null
   if run_root systemctl is-active --quiet caddy; then
@@ -64,7 +64,14 @@ main() {
     run_root systemctl status caddy --no-pager || true
     fail "Caddy failed to start."
   fi
+  if command -v ufw >/dev/null 2>&1 && run_root ufw status | grep -q '^Status: active'; then
+    run_root ufw allow "${ACCESS_PORT}/tcp" >/dev/null
+  fi
   printf 'DEVICE_NAME=%q\nRUN_USER=%q\nACCESS_PORT=%q\nORIGINAL_HOSTNAME=%q\nINSTALLER_VERSION=%q\n' "$DEVICE_NAME" "$RUN_USER" "$ACCESS_PORT" "$ORIGINAL_HOSTNAME" "$version" | run_root tee "$STATE_FILE" >/dev/null
+  local ip_addr ip_url
+  ip_addr="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  ip_url="http://${ip_addr:-127.0.0.1}"; [[ "$ACCESS_PORT" == 80 ]] || ip_url="${ip_url}:${ACCESS_PORT}"
   log "Update completed. Open $site"
+  log "IP address: $ip_url"
 }
 main "$@"
